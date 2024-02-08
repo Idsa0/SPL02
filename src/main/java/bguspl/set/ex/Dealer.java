@@ -39,11 +39,16 @@ public class Dealer implements Runnable {
      */
     private long reshuffleTime = Long.MAX_VALUE;
 
+    private 
+    
     public Dealer(Env env, Table table, Player[] players) {
         this.env = env;
         this.table = table;
         this.players = players;
         deck = IntStream.range(0, env.config.deckSize).boxed().collect(Collectors.toList());
+        
+        // TODO: initialize some values according to env.config
+        reshuffleTime = env.config.turnTimeoutMillis; // TODO: timer bonus.
     }
 
     /**
@@ -94,7 +99,8 @@ public class Dealer implements Runnable {
      * Checks cards should be removed from the table and removes them.
      */
     private void removeCardsFromTable() {
-        // TODO implement
+        
+    	// TODO implement
     }
 
     /**
@@ -108,7 +114,11 @@ public class Dealer implements Runnable {
      * Sleep for a fixed amount of time or until the thread is awakened for some purpose.
      */
     private void sleepUntilWokenOrTimeout() {
-        // TODO implement
+    	try { // TODO: timer bonus.
+    		Thread.sleep(reshuffleTime);
+    	} catch (InterruptedException ignored) {
+    		
+    	} 
     }
 
     /**
@@ -148,4 +158,10 @@ public class Dealer implements Runnable {
         env.ui.announceWinner(winnersArray);
         // TODO implement
     }
+
+    /*
+	public void declareSetAsAPlayer(int id) {
+		// TODO Auto-generated method stub
+		
+	} */
 }
