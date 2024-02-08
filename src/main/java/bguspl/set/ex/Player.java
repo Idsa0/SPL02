@@ -49,6 +49,10 @@ public class Player implements Runnable {
      * The current score of the player.
      */
     private int score;
+    
+    private BlockingQueue<Integer> inputBuffer;
+    
+    private Dealer dealer;
 
     /**
      * The class constructor.
@@ -64,6 +68,8 @@ public class Player implements Runnable {
         this.table = table;
         this.id = id;
         this.human = human;
+        this.dealer = dealer;
+        inputBuffer = new WaitNotifyBlockingQueue<Integer>(3);
     }
 
     /**
@@ -76,13 +82,43 @@ public class Player implements Runnable {
         if (!human) createArtificialIntelligence();
 
         while (!terminate) {
+
+        	// read action from queue * thread will wait here for input.
+        	Integer keyPress = inputBuffer.pop();
+        	int slotPressed = keyToSlotTranslator(keyPress); 
+        	
+        	// add/remove token if applicable
+        	if (!table.removeToken(id, slotPressed)) {
+        		table.placeToken(id, slotPressed);
+        	}
+        	
+        	
+        	
+        	// if 3 tokens, notify dealer, wait till dealer finishes.
+        	if (table.tokenAmount(id) == 3) {
+        		dealer.declareSetAsAPlayer(id);
+        	}
+        	
+        	
+        	
+        	
+        	// clear action buffer
+        	inputBuffer.clear();
+        	
+        	
+        	
             // TODO implement main player loop
         }
         if (!human) try { aiThread.join(); } catch (InterruptedException ignored) {}
         env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
     }
 
-    /**
+    private int keyToSlotTranslator(Integer keyPress) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	/**
      * Creates an additional thread for an AI (computer) player. The main loop of this thread repeatedly generates
      * key presses. If the queue of key presses is full, the thread waits until it is not full.
      */
@@ -92,7 +128,9 @@ public class Player implements Runnable {
             env.logger.info("thread " + Thread.currentThread().getName() + " starting.");
             while (!terminate) {
                 // TODO implement player key press simulator
-                try {
+            
+            	
+            	try {
                     synchronized (this) { wait(); }
                 } catch (InterruptedException ignored) {}
             }
@@ -114,7 +152,7 @@ public class Player implements Runnable {
      * @param slot - the slot corresponding to the key pressed.
      */
     public void keyPressed(int slot) {
-        // TODO implement
+        inputBuffer.add(slot);
     }
 
     /**
