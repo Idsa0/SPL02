@@ -94,6 +94,8 @@ public class Table {
         cardToSlot[card] = slot;
         slotToCard[slot] = card;
 
+        env.ui.placeCard(card, slot);
+
         // TODO implement
     }
 
@@ -106,6 +108,12 @@ public class Table {
             Thread.sleep(env.config.tableDelayMillis);
         } catch (InterruptedException ignored) {}
 
+        if (slotToCard[slot] != null)
+            cardToSlot[slotToCard[slot]] = null;
+        slotToCard[slot] = null;
+
+        env.ui.removeCard(slot);
+
         // TODO implement
     }
 
@@ -115,6 +123,11 @@ public class Table {
      * @param slot   - the slot on which to place the token.
      */
     public void placeToken(int player, int slot) {
+        env.ui.placeToken(player, slot);
+        // this possibly requires more actions?
+        // TODO i didnt check whether the input is legal does the ui take care of it?
+
+
         // TODO implement
     }
 
@@ -125,6 +138,12 @@ public class Table {
      * @return       - true iff a token was successfully removed.
      */
     public boolean removeToken(int player, int slot) {
+        env.ui.removeToken(player, slot);
+        // this possibly requires more actions?
+        // TODO i didnt check whether the input is legal does the ui take care of it?
+        // i also never return true here
+
+
         // TODO implement
         return false;
     }
