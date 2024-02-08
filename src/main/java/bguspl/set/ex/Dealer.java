@@ -2,6 +2,8 @@ package bguspl.set.ex;
 
 import bguspl.set.Env;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -85,7 +87,7 @@ public class Dealer implements Runnable {
      * @return true iff the game should be finished.
      */
     private boolean shouldFinish() {
-        return terminate || env.util.findSets(deck, 1).size() == 0;
+        return terminate || env.util.findSets(deck, 1).isEmpty();
     }
 
     /**
@@ -120,6 +122,9 @@ public class Dealer implements Runnable {
      * Returns all the cards from the table to the deck.
      */
     private void removeAllCardsFromTable() {
+        for (int i = 0; i < env.config.tableSize; i++)
+            table.removeCard(i);
+
         // TODO implement
     }
 
@@ -127,6 +132,20 @@ public class Dealer implements Runnable {
      * Check who is/are the winner/s and displays them.
      */
     private void announceWinners() {
+        int topScore = players[0].score(); // TODO could this array be empty?
+        List<Integer> winners = new ArrayList<>();
+        for (Player p : players)
+            if (p.score() > topScore)
+                topScore = p.score();
+
+        for (int i = 0; i < players.length; i++)
+            if (players[i].score() == topScore)
+                winners.add(i);
+
+        int[] winnersArray = new int[winners.size()];
+        for (int i = 0; i < winnersArray.length; i++)
+            winnersArray[i] = winners.get(i);
+        env.ui.announceWinner(winnersArray);
         // TODO implement
     }
 }
