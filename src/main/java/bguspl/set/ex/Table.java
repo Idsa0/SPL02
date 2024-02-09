@@ -152,18 +152,27 @@ public class Table {
      */
     public void placeToken(int player, int slot) {
     	synchronized(playerLocks[player]) {
-    		if (!legalSlot(slot))
-    			throw new RuntimeException();
+    		if (!tokenLegalSlot(slot))
+    			return;
     		
     		if (tokenAmount(player) >= 3) // TODO: magic number, is this effected by config?
-    			throw new RuntimeException(); // TODO: maybe exit simply.
+    			return;
+    		
+    		if (playerTokens[player].contains(slot))
+    			return;
     		
     		playerTokens[player].add(slot);
     		env.ui.placeToken(player, slot);
     	}
     }
 
-    private boolean legalSlot(int slot) {
+    // a tokenLegalSlot is a legalSlot that has a card.
+    private boolean tokenLegalSlot(int slot) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	private boolean legalSlot(int slot) {
     	// TODO: we threw exceptions where it wasn't legal. but at the end of the game it is not so clear which slots remain to play. 
 		// TODO Auto-generated method stub
 		return false;
@@ -177,8 +186,8 @@ public class Table {
      */
     public boolean removeToken(int player, int slot) {
     	synchronized(playerLocks[player]) {
-    		if (!legalSlot(slot))
-    			throw new RuntimeException();
+    		if (!tokenLegalSlot(slot))
+    			return false;
     		
     		if (tokenAmount(player) <= 0) // TODO: magic number, is this effected by config?
     			return false;
@@ -205,7 +214,7 @@ public class Table {
 				// Declare that i want the set to be checked
 				// TODO: concurrency error: what if the dealer finishes his check and notifiyes before we get to wait()? this will lock forever.
 				// then wait
-			} 
+			} catch (InterruptedException ignored) {}
 		}
 		// TODO Auto-generated method stub
 		
