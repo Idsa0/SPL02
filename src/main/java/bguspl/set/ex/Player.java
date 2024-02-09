@@ -96,7 +96,7 @@ public class Player implements Runnable {
         	
         	// if 3 tokens, notify dealer, wait till dealer finishes.
         	if (table.tokenAmount(id) == 3) {
-        		dealer.declareSetAsAPlayer(id);
+        		table.declareSet(id);
         	}
         	
         	
