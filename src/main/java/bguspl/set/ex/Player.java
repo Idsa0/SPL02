@@ -10,6 +10,7 @@ import bguspl.set.Env;
  */
 public class Player implements Runnable {
 
+    private static final long AIWAITTIME = 1000;
     /**
      * The game environment object.
      */
@@ -69,7 +70,7 @@ public class Player implements Runnable {
         this.id = id;
         this.human = human;
         this.dealer = dealer;
-        inputBuffer = new WaitNotifyBlockingQueue<Integer>(3);
+        inputBuffer = new WaitNotifyBlockingQueue<Integer>(env.config.featureSize);
     }
 
     /**
@@ -84,20 +85,19 @@ public class Player implements Runnable {
         while (!terminate) {
 
         	// read action from queue * thread will wait here for input.
-        	Integer keyPress = inputBuffer.pop();
-        	int slotPressed = keyToSlotTranslator(keyPress); 
-        	
+        	int keyPress = inputBuffer.pop();
+
         	// add/remove token if applicable
-        	if (!table.removeToken(id, slotPressed)) {
-        		table.placeToken(id, slotPressed);
+        	if (!table.removeToken(id, keyPress)) {
+        		table.placeToken(id, keyPress);
         	}
         	
         	
         	
-        	// if 3 tokens, notify dealer, wait till dealer finishes.
-        	if (table.tokenAmount(id) == 3) {
-        		table.declareSet(id);
-        	}
+//        	// if 3 tokens, notify dealer, wait till dealer finishes.
+//        	if (table.tokenAmount(id) == env.config.featureSize) {
+//        		table.declareSet(id);
+//        	}
         	
         	
         	
@@ -113,10 +113,6 @@ public class Player implements Runnable {
         env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
     }
 
-    private int keyToSlotTranslator(Integer keyPress) {
-		// TODO Auto-generated method stub
-		return 0;
-	}
 
 	/**
      * Creates an additional thread for an AI (computer) player. The main loop of this thread repeatedly generates
@@ -128,11 +124,16 @@ public class Player implements Runnable {
             env.logger.info("thread " + Thread.currentThread().getName() + " starting.");
             while (!terminate) {
                 // TODO implement player key press simulator
-            
-            	
-            	try {
-                    synchronized (this) { wait(); }
+
+                inputBuffer.add((int) (Math.random() * env.config.tableSize));
+                try {
+                    synchronized (this) { wait(AIWAITTIME); }
                 } catch (InterruptedException ignored) {}
+
+//            	try {
+//                    synchronized (this) { wait(); }
+//                } catch (InterruptedException ignored) {}
+//                TODO they added this
             }
             env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
         }, "computer-" + id);
@@ -143,7 +144,11 @@ public class Player implements Runnable {
      * Called when the game should be terminated.
      */
     public void terminate() {
-        // TODO implement
+
+        terminate = true;
+        notifyAll();
+        // TODO graceful exit challenge
+
     }
 
     /**
@@ -163,7 +168,7 @@ public class Player implements Runnable {
      */
     public void point() {
         // TODO implement
-
+        ++score;
         int ignored = table.countCards(); // this part is just for demonstration in the unit tests
         env.ui.setScore(id, ++score);
     }
@@ -173,6 +178,9 @@ public class Player implements Runnable {
      */
     public void penalty() {
         // TODO implement
+        try {
+            this.playerThread.wait(env.config.penaltyFreezeMillis);
+        } catch (InterruptedException ignored) {} // TODO hmmmmmmmmmmmm?
     }
 
     public int score() {
