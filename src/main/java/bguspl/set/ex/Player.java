@@ -168,8 +168,8 @@ public class Player implements Runnable {
      */
     public void point() {
         // TODO implement
-        ++score;
-        int ignored = table.countCards(); // this part is just for demonstration in the unit tests
+        
+	int ignored = table.countCards(); // this part is just for demonstration in the unit tests
         env.ui.setScore(id, ++score);
     }
 
