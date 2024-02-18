@@ -35,13 +35,12 @@ public class Table {
      */
     protected final Vector<Integer>[] playerTokens;
     
-    // TODO: lock class wrapper.
-    protected final Object[] playerLocks;
+    protected final Lock[] playerLocks;
 
-	private Object declareSetLock;
+	/*private final Lock declareSetLock;
 
-	private boolean checkSet;
-    
+	private boolean checkSet;*/
+
     
     /**
      * Constructor for testing.
@@ -56,16 +55,16 @@ public class Table {
         this.slotToCard = slotToCard;
         this.cardToSlot = cardToSlot;
         
-        // Java does not allow an array of vectors to be created. Must be casted.
+        // Java does not allow an array of vectors to be created. Must be cast.
 		this.playerTokens = (Vector<Integer>[]) new Vector[env.config.players];
-		this.playerLocks = new Object[env.config.players];
+		this.playerLocks = new Lock[env.config.players];
 		
 		for (int i = 0 ; i< env.config.players; i++) {
-			playerTokens[i] = new Vector<Integer>();
-			playerLocks[i] = new Object();
+			playerTokens[i] = new Vector<>();
+			playerLocks[i] = new Lock();
 		}
 		
-		declareSetLock = new Object();
+		//declareSetLock = new Lock();
     }
 
     /**
@@ -123,7 +122,7 @@ public class Table {
 
         env.ui.placeCard(card, slot);
 
-        // TODO: synchronized?
+
     }
 
     /**
@@ -141,8 +140,10 @@ public class Table {
             cardToSlot[slotToCard[slot]] = null;
         slotToCard[slot] = null;
 
+        // TODO also remove tokens!
+
         env.ui.removeCard(slot);
-        // TODO: synchronized?
+
     }
 
     /**
@@ -155,7 +156,7 @@ public class Table {
     		if (!tokenLegalSlot(slot))
     			return;
     		
-    		if (tokenAmount(player) >= 3) // TODO: magic number, is this effected by config?
+    		if (tokenAmount(player) >= env.config.featureSize)
     			return;
     		
     		if (playerTokens[player].contains(slot))
@@ -168,14 +169,11 @@ public class Table {
 
     // a tokenLegalSlot is a legalSlot that has a card.
     private boolean tokenLegalSlot(int slot) {
-		// TODO Auto-generated method stub
-		return false;
+        return legalSlot(slot) && slotToCard[slot] != null;
 	}
 
 	private boolean legalSlot(int slot) {
-    	// TODO: we threw exceptions where it wasn't legal. but at the end of the game it is not so clear which slots remain to play. 
-		// TODO Auto-generated method stub
-		return false;
+        return slot < slotToCard.length;
 	}
 
 	/**
@@ -189,7 +187,7 @@ public class Table {
     		if (!tokenLegalSlot(slot))
     			return false;
     		
-    		if (tokenAmount(player) <= 0) // TODO: magic number, is this effected by config?
+    		if (tokenAmount(player) <= 0)
     			return false;
     		
     		if (playerTokens[player].contains(slot)){
@@ -208,15 +206,15 @@ public class Table {
 		}	
 	}
 
-	public void declareSet(int id) {
+	/*public void declareSet(int id) {
 		synchronized(declareSetLock) {
 			try {
 				// Declare that i want the set to be checked
-				// TODO: concurrency error: what if the dealer finishes his check and notifiyes before we get to wait()? this will lock forever.
+				// TODO: concurrency error: what if the dealer finishes his check and notifies before we get to wait()? this will lock forever.
 				// then wait
 			} catch (InterruptedException ignored) {}
 		}
 		// TODO Auto-generated method stub
 		
-	}
+	} */
 }

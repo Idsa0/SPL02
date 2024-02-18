@@ -39,13 +39,12 @@ public class Dealer implements Runnable {
      */
     private long reshuffleTime = Long.MAX_VALUE;
 
-    private 
-    
     public Dealer(Env env, Table table, Player[] players) {
         this.env = env;
         this.table = table;
         this.players = players;
         deck = IntStream.range(0, env.config.deckSize).boxed().collect(Collectors.toList());
+        terminate = false;
         
         // TODO: initialize some values according to env.config
         reshuffleTime = env.config.turnTimeoutMillis; // TODO: timer bonus.
@@ -61,7 +60,7 @@ public class Dealer implements Runnable {
             placeCardsOnTable();
             timerLoop();
             updateTimerDisplay(false);
-            removeAllCardsFromTable();
+//            removeAllCardsFromTable();
         }
         announceWinners();
         env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
