@@ -2,9 +2,7 @@ package bguspl.set.ex;
 
 import bguspl.set.Env;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -34,10 +32,15 @@ public class Dealer implements Runnable {
      */
     private volatile boolean terminate;
 
+    private final Lock declareSetLock;
+
+    private Queue<Integer> setContenders;
+
     /**
      * The time when the dealer needs to reshuffle the deck due to turn timeout.
      */
     private long reshuffleTime = Long.MAX_VALUE;
+    private boolean setDeclared;
 
     public Dealer(Env env, Table table, Player[] players) {
         this.env = env;
@@ -45,7 +48,11 @@ public class Dealer implements Runnable {
         this.players = players;
         deck = IntStream.range(0, env.config.deckSize).boxed().collect(Collectors.toList());
         terminate = false;
-        
+
+        declareSetLock = new Lock();
+        setDeclared = false;
+        setContenders = new PriorityQueue<>();
+
         // TODO: initialize some values according to env.config
         reshuffleTime = env.config.turnTimeoutMillis; // TODO: timer bonus.
     }
@@ -56,6 +63,11 @@ public class Dealer implements Runnable {
     @Override
     public void run() {
         env.logger.info("thread " + Thread.currentThread().getName() + " starting.");
+
+        for (Player player : players)
+            new Thread(player, env.config.playerNames[player.id]).start(); // Todo: weird call
+
+
         while (!shouldFinish()) {
             placeCardsOnTable();
             timerLoop();
@@ -98,14 +110,45 @@ public class Dealer implements Runnable {
      * Checks cards should be removed from the table and removes them.
      */
     private void removeCardsFromTable() {
-        
-    	// TODO implement
+        if (!setDeclared)
+            return;
+
+        synchronized (declareSetLock) {
+            while (!setContenders.isEmpty()){
+            int player = setContenders.remove();
+            Integer[] playerTokens = table.getPlayerTokens(player).toArray(new Integer[0]);
+            int[] playerCards = new int[playerTokens.length];
+            for (int i = 0; i < playerTokens.length; i++){
+                if (table.slotToCard[playerTokens[i]] != null)
+                    playerCards[i] = table.slotToCard[playerTokens[i]];
+                else
+                    playerCards[i] = -1;
+            }
+
+            boolean isSet = env.util.testSet(playerCards);
+
+            if (isSet) {
+                players[player].point();
+                for (int slot : playerTokens)
+                    table.removeCard(slot);
+            }
+            else {
+                players[player].penalty();
+            }}
+        }
+        // TODO implement
     }
 
     /**
      * Check if any cards can be removed from the deck and placed on the table.
      */
     private void placeCardsOnTable() {
+        ArrayList<Integer> cardsToPlace = IntStream.range(0, env.config.tableSize).filter(i -> !table.hasCard(i)).boxed().collect(Collectors.toCollection(() -> new ArrayList<>(env.config.tableSize)));
+        Collections.shuffle(cardsToPlace);
+
+        for (Integer i : cardsToPlace)
+            if (!table.deckEmpty())
+                table.placeCardFromDeck(i);
         // TODO implement
     }
 
@@ -113,11 +156,12 @@ public class Dealer implements Runnable {
      * Sleep for a fixed amount of time or until the thread is awakened for some purpose.
      */
     private void sleepUntilWokenOrTimeout() {
-    	try { // TODO: timer bonus.
-    		Thread.sleep(reshuffleTime);
-    	} catch (InterruptedException ignored) {
-    		
-    	} 
+        if (!setDeclared) {
+            try { // TODO: timer bonus.
+                Thread.sleep(reshuffleTime);
+            } catch (InterruptedException ignored) {
+            }
+        }
     }
 
     /**
@@ -133,8 +177,6 @@ public class Dealer implements Runnable {
     private void removeAllCardsFromTable() {
         for (int i = 0; i < env.config.tableSize; i++)
             table.removeCard(i);
-
-        // TODO implement
     }
 
     /**
@@ -158,9 +200,11 @@ public class Dealer implements Runnable {
         // TODO implement
     }
 
-    /*
-	public void declareSetAsAPlayer(int id) {
-		// TODO Auto-generated method stub
-		
-	} */
+    public void declareSet(int id) {
+        synchronized (declareSetLock) {
+            setDeclared = true;
+            setContenders.add(id);
+            declareSetLock.notifyAll();
+        }
+    }
 }

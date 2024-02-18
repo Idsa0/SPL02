@@ -50,11 +50,12 @@ public class Player implements Runnable {
      * The current score of the player.
      */
     private int score;
-    
+
     private BlockingQueue<Integer> inputBuffer;
-    
+
     private Dealer dealer;
 
+    public final Lock myLock;
     /**
      * The class constructor.
      *
@@ -71,6 +72,8 @@ public class Player implements Runnable {
         this.human = human;
         this.dealer = dealer;
         inputBuffer = new WaitNotifyBlockingQueue<Integer>(env.config.featureSize);
+
+        myLock = new Lock();
     }
 
     /**
@@ -84,37 +87,37 @@ public class Player implements Runnable {
 
         while (!terminate) {
 
-        	// read action from queue * thread will wait here for input.
-        	int keyPress = inputBuffer.pop();
+            // read action from queue * thread will wait here for input.
+            int keyPress = inputBuffer.pop();
 
-        	// add/remove token if applicable
-        	if (!table.removeToken(id, keyPress)) {
-        		table.placeToken(id, keyPress);
-        	}
-        	
-        	
-        	
-//        	// if 3 tokens, notify dealer, wait till dealer finishes.
-//        	if (table.tokenAmount(id) == env.config.featureSize) {
-//        		table.declareSet(id);
-//        	}
-        	
-        	
-        	
-        	
-        	// clear action buffer
-        	inputBuffer.clear();
-        	
-        	
-        	
+            table.token(id, keyPress);
+
+            // if 3 tokens, notify dealer, wait till dealer finishes.
+            if (table.tokenAmount(id) == env.config.featureSize) {
+                dealer.declareSet(id);
+                try {
+                    synchronized (myLock){
+                    myLock.wait();}
+                } catch (InterruptedException ignored) {
+                }
+            }
+
+
+            // clear action buffer???
+            inputBuffer.clear();
+
+
             // TODO implement main player loop
         }
-        if (!human) try { aiThread.join(); } catch (InterruptedException ignored) {}
+        if (!human) try {
+            aiThread.join();
+        } catch (InterruptedException ignored) {
+        }
         env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
     }
 
 
-	/**
+    /**
      * Creates an additional thread for an AI (computer) player. The main loop of this thread repeatedly generates
      * key presses. If the queue of key presses is full, the thread waits until it is not full.
      */
@@ -127,8 +130,11 @@ public class Player implements Runnable {
 
                 inputBuffer.add((int) (Math.random() * env.config.tableSize));
                 try {
-                    synchronized (this) { wait(AIWAITTIME); }
-                } catch (InterruptedException ignored) {}
+                    synchronized (this) {
+                        wait(AIWAITTIME);
+                    }
+                } catch (InterruptedException ignored) {
+                }
 
 //            	try {
 //                    synchronized (this) { wait(); }
@@ -167,20 +173,24 @@ public class Player implements Runnable {
      * @post - the player's score is updated in the ui.
      */
     public void point() {
-        // TODO implement
-        
-	int ignored = table.countCards(); // this part is just for demonstration in the unit tests
+        try {
+            this.playerThread.wait(env.config.pointFreezeMillis); // TODO maybe aiThread?
+        } catch (InterruptedException ignored) {
+        }
+        int ignored = table.countCards(); // this part is just for demonstration in the unit tests
         env.ui.setScore(id, ++score);
+        inputBuffer.clear();
     }
 
     /**
      * Penalize a player and perform other related actions.
      */
     public void penalty() {
-        // TODO implement
         try {
             this.playerThread.wait(env.config.penaltyFreezeMillis);
-        } catch (InterruptedException ignored) {} // TODO hmmmmmmmmmmmm?
+        } catch (InterruptedException ignored) {
+        }
+        inputBuffer.clear();
     }
 
     public int score() {

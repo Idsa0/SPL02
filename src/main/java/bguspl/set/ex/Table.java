@@ -2,10 +2,7 @@ package bguspl.set.ex;
 
 import bguspl.set.Env;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-import java.util.Vector;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -34,14 +31,17 @@ public class Table {
      * Holds players tokens
      */
     protected final Vector<Integer>[] playerTokens;
-    
+
     protected final Lock[] playerLocks;
+
+    protected final Lock cardLock;
 
 	/*private final Lock declareSetLock;
 
 	private boolean checkSet;*/
 
-    
+    private List<Integer> deck;
+
     /**
      * Constructor for testing.
      *
@@ -54,17 +54,31 @@ public class Table {
         this.env = env;
         this.slotToCard = slotToCard;
         this.cardToSlot = cardToSlot;
-        
+
+        // TODO: check slotToCard, cardToSlot are legal
+
         // Java does not allow an array of vectors to be created. Must be cast.
-		this.playerTokens = (Vector<Integer>[]) new Vector[env.config.players];
-		this.playerLocks = new Lock[env.config.players];
-		
-		for (int i = 0 ; i< env.config.players; i++) {
-			playerTokens[i] = new Vector<>();
-			playerLocks[i] = new Lock();
-		}
-		
-		//declareSetLock = new Lock();
+        this.playerTokens = (Vector<Integer>[]) new Vector[env.config.players]; // TODO make sure this actually works
+        this.playerLocks = new Lock[env.config.players];
+
+        for (int i = 0; i < env.config.players; i++) {
+            playerTokens[i] = new Vector<>();
+            playerLocks[i] = new Lock();
+        }
+        cardLock = new Lock();
+
+        deck = new ArrayList<>(env.config.deckSize);
+        for (int i = 0; i < env.config.deckSize; i++)
+            deck.add(i);
+
+        // in case slotToCard is not empty:
+        for (Integer i : slotToCard) {
+            deck.remove(i); // TODO: does this remove the object? or the index?
+        }
+
+        Collections.shuffle(deck);
+
+        //declareSetLock = new Lock();
     }
 
     /**
@@ -81,8 +95,8 @@ public class Table {
      * This method prints all possible legal sets of cards that are currently on the table.
      */
     public void hints() {
-        List<Integer> deck = Arrays.stream(slotToCard).filter(Objects::nonNull).collect(Collectors.toList());
-        env.util.findSets(deck, Integer.MAX_VALUE).forEach(set -> {
+        List<Integer> deck0 = Arrays.stream(slotToCard).filter(Objects::nonNull).collect(Collectors.toList());
+        env.util.findSets(deck0, Integer.MAX_VALUE).forEach(set -> {
             StringBuilder sb = new StringBuilder().append("Hint: Set found: ");
             List<Integer> slots = Arrays.stream(set).mapToObj(card -> cardToSlot[card]).sorted().collect(Collectors.toList());
             int[][] features = env.util.cardsToFeatures(set);
@@ -103,118 +117,163 @@ public class Table {
         return cards;
     }
 
+    public boolean hasCard(int slot) {
+        // TODO sync?
+        return slotToCard[slot] != null;
+    }
+
     /**
      * Places a card on the table in a grid slot.
+     *
      * @param card - the card id to place in the slot.
      * @param slot - the slot in which the card should be placed.
-     *
      * @post - the card placed is on the table, in the assigned slot.
      */
     public void placeCard(int card, int slot) {
-    	if (!legalSlot(slot))
-			throw new RuntimeException();
+        if (!deck.contains(card))
+            throw new RuntimeException("Table::placeCard called with a card not in the deck!");
+        if (!legalSlot(slot))
+            throw new RuntimeException("Table::placeCard called with a non-existing slot!");
+        if (slotToCard[slot] != null) {
+            throw new RuntimeException("Table::placeCard placing card where there is another card");
+        }
         try {
             Thread.sleep(env.config.tableDelayMillis);
-        } catch (InterruptedException ignored) {}
+        } catch (InterruptedException ignored) {
+        }
 
+        deck.remove((Integer) card); // TODO suspicious no way this works, right? right???
         cardToSlot[card] = slot;
         slotToCard[slot] = card;
 
         env.ui.placeCard(card, slot);
+    }
 
 
+    public void placeCardFromDeck(int slot) {
+        placeCard(deck.get(0), slot);
+    }
+
+    public void removeCardAndReturnToDeck(int slot) {
+        // TODO should be locked
+
+        Integer card = removeCardWorker(slot);
+        if (card != null)
+            deck.add(card);
+    }
+
+    private Integer removeCardWorker(int slot) {
+        synchronized (cardLock) {
+            if (!legalSlot(slot))
+                throw new RuntimeException();
+            try {
+                Thread.sleep(env.config.tableDelayMillis);
+            } catch (InterruptedException ignored) {
+            }
+
+            Integer card = slotToCard[slot];
+            if (card != null)
+                cardToSlot[slotToCard[slot]] = null;
+            slotToCard[slot] = null;
+
+            for (int i = 0; i < env.config.players; i++)
+                removeToken(i, slot);
+
+            env.ui.removeCard(slot);
+            return card;
+        }
     }
 
     /**
      * Removes a card from a grid slot on the table.
+     *
      * @param slot - the slot from which to remove the card.
      */
     public void removeCard(int slot) {
-    	if (!legalSlot(slot))
-			throw new RuntimeException();
-        try {
-            Thread.sleep(env.config.tableDelayMillis);
-        } catch (InterruptedException ignored) {}
+        // TODO should be locked
+        removeCardWorker(slot);
+    }
 
-        if (slotToCard[slot] != null)
-            cardToSlot[slotToCard[slot]] = null;
-        slotToCard[slot] = null;
+    public void token(int player, int slot) {
+        synchronized (playerLocks[player]) {
+            if (!tokenLegalSlot(slot))
+                return;
 
-        // TODO also remove tokens!
-
-        env.ui.removeCard(slot);
-
+            if (playerTokens[player].contains(slot))
+                removeToken(player, slot);
+            else
+                placeToken(player, slot);
+        }
     }
 
     /**
      * Places a player token on a grid slot.
+     *
      * @param player - the player the token belongs to.
      * @param slot   - the slot on which to place the token.
      */
     public void placeToken(int player, int slot) {
-    	synchronized(playerLocks[player]) {
-    		if (!tokenLegalSlot(slot))
-    			return;
-    		
-    		if (tokenAmount(player) >= env.config.featureSize)
-    			return;
-    		
-    		if (playerTokens[player].contains(slot))
-    			return;
-    		
-    		playerTokens[player].add(slot);
-    		env.ui.placeToken(player, slot);
-    	}
+        synchronized (playerLocks[player]) {
+            if (!tokenLegalSlot(slot)) // TODO card locking
+                return;
+
+            if (tokenAmount(player) >= env.config.featureSize)
+                return;
+
+            if (playerTokens[player].contains(slot))
+                return;
+
+            playerTokens[player].add(slot);
+            env.ui.placeToken(player, slot);
+        }
     }
 
     // a tokenLegalSlot is a legalSlot that has a card.
     private boolean tokenLegalSlot(int slot) {
         return legalSlot(slot) && slotToCard[slot] != null;
-	}
-
-	private boolean legalSlot(int slot) {
-        return slot < slotToCard.length;
-	}
-
-	/**
-     * Removes a token of a player from a grid slot.
-     * @param player - the player the token belongs to.
-     * @param slot   - the slot from which to remove the token.
-     * @return       - true iff a token was successfully removed.
-     */
-    public boolean removeToken(int player, int slot) {
-    	synchronized(playerLocks[player]) {
-    		if (!tokenLegalSlot(slot))
-    			return false;
-    		
-    		if (tokenAmount(player) <= 0)
-    			return false;
-    		
-    		if (playerTokens[player].contains(slot)){
-    			playerTokens[player].remove(slot);
-    			env.ui.removeToken(player, slot);
-    			return true;
-    		}
-    		
-    		return false;
-    	}
     }
 
-	public int tokenAmount(int player) {
-		synchronized (playerLocks[player]) {
-			return playerTokens[player].size();
-		}	
-	}
+    private boolean legalSlot(int slot) {
+        return slot < slotToCard.length;
+    }
 
-	/*public void declareSet(int id) {
-		synchronized(declareSetLock) {
-			try {
-				// Declare that i want the set to be checked
-				// TODO: concurrency error: what if the dealer finishes his check and notifies before we get to wait()? this will lock forever.
-				// then wait
-			} catch (InterruptedException ignored) {}
-		}
-		// TODO Auto-generated method stub
-		
-	} */
+
+    /**
+     * Removes a token of a player from a grid slot.
+     *
+     * @param player - the player the token belongs to.
+     * @param slot   - the slot from which to remove the token.
+     * @return - true iff a token was successfully removed.
+     */
+    public boolean removeToken(int player, int slot) {
+        synchronized (playerLocks[player]) {
+            if (!tokenLegalSlot(slot))
+                return false;
+
+            if (tokenAmount(player) <= 0)
+                return false;
+
+            if (playerTokens[player].contains(slot)) {
+                playerTokens[player].remove((Integer) slot);
+                env.ui.removeToken(player, slot);
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    public int tokenAmount(int player) {
+        synchronized (playerLocks[player]) {
+            return playerTokens[player].size();
+        }
+    }
+
+    public boolean deckEmpty() {
+        return deck.isEmpty();
+    }
+
+    public Vector<Integer> getPlayerTokens(int player) {
+        return playerTokens[player];
+    }
 }
