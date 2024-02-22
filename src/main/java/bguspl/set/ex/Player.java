@@ -56,6 +56,12 @@ public class Player implements Runnable {
     private Dealer dealer;
 
     public final Lock myLock;
+    
+    private volatile boolean iAmWaitingForDeclareResult = false;
+    
+    private volatile boolean declareResultIsPenalty = false;
+    
+    private volatile boolean declareResultIsPoint = false;
     /**
      * The class constructor.
      *
@@ -95,24 +101,35 @@ public class Player implements Runnable {
             // if 3 tokens, notify dealer, wait till dealer finishes.
             if (table.tokenAmount(id) == env.config.featureSize) {
                 dealer.declareSet(id);
-                try {
-                    synchronized (myLock){
-                    myLock.wait();}
-                } catch (InterruptedException ignored) {
+                synchronized (myLock){
+                	try {
+                		iAmWaitingForDeclareResult = true;
+                    	myLock.notifyAll();
+                    	myLock.wait();
+                    	
+                    	iAmWaitingForDeclareResult = false;
+	                	if (declareResultIsPenalty) {
+	                		// TODO: notify ui of freeze
+	                		Thread.sleep(env.config.penaltyFreezeMillis);
+	                	}
+	                	if (declareResultIsPoint) {
+	                		// TODO: notify ui of freeze
+	                		Thread.sleep(env.config.pointFreezeMillis);
+	                	}
+	                	declareResultIsPenalty = false;
+	                	declareResultIsPoint = false;
+	                	
+                	} catch (InterruptedException e) {}
                 }
+                inputBuffer.clear();
+
+           
             }
-
-
-            // clear action buffer???
-            inputBuffer.clear();
-
-
             // TODO implement main player loop
         }
         if (!human) try {
             aiThread.join();
-        } catch (InterruptedException ignored) {
-        }
+        } catch (InterruptedException ignored) {}
         env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
     }
 
@@ -173,24 +190,33 @@ public class Player implements Runnable {
      * @post - the player's score is updated in the ui.
      */
     public void point() {
-        try {
-            this.playerThread.wait(env.config.pointFreezeMillis); // TODO maybe aiThread?
-        } catch (InterruptedException ignored) {
+    	synchronized(myLock) {
+    		while (!iAmWaitingForDeclareResult) {
+	        	try {
+					myLock.wait();
+	        	} catch (InterruptedException ignored) {}
+    		}
+    		declareResultIsPoint = true;
+    		myLock.notifyAll();
         }
+    	
         int ignored = table.countCards(); // this part is just for demonstration in the unit tests
         env.ui.setScore(id, ++score);
-        inputBuffer.clear();
     }
 
     /**
      * Penalize a player and perform other related actions.
      */
     public void penalty() {
-        try {
-            this.playerThread.wait(env.config.penaltyFreezeMillis);
-        } catch (InterruptedException ignored) {
+        synchronized(myLock) {
+    		while (!iAmWaitingForDeclareResult) {
+	        	try {
+					myLock.wait();
+	        	} catch (InterruptedException ignored) {}
+    		}
+    		declareResultIsPenalty = true;
+    		myLock.notifyAll();
         }
-        inputBuffer.clear();
     }
 
     public int score() {

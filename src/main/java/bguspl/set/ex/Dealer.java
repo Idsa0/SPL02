@@ -54,7 +54,7 @@ public class Dealer implements Runnable {
         setContenders = new PriorityQueue<>();
 
         // TODO: initialize some values according to env.config
-        reshuffleTime = env.config.turnTimeoutMillis; // TODO: timer bonus.
+        reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis; // TODO: timer bonus.
     }
 
     /**
@@ -110,31 +110,32 @@ public class Dealer implements Runnable {
      * Checks cards should be removed from the table and removes them.
      */
     private void removeCardsFromTable() {
-        if (!setDeclared)
+        if (setContenders.isEmpty())
             return;
 
         synchronized (declareSetLock) {
             while (!setContenders.isEmpty()){
-            int player = setContenders.remove();
-            Integer[] playerTokens = table.getPlayerTokens(player).toArray(new Integer[0]);
-            int[] playerCards = new int[playerTokens.length];
-            for (int i = 0; i < playerTokens.length; i++){
-                if (table.slotToCard[playerTokens[i]] != null)
-                    playerCards[i] = table.slotToCard[playerTokens[i]];
-                else
-                    playerCards[i] = -1;
+	            int player = setContenders.remove();
+	            Integer[] playerTokens = table.getPlayerTokens(player).toArray(new Integer[0]);
+	            int[] playerCards = new int[playerTokens.length];
+	            for (int i = 0; i < playerTokens.length; i++){
+	                if (table.slotToCard[playerTokens[i]] != null)
+	                    playerCards[i] = table.slotToCard[playerTokens[i]];
+	                else
+	                    playerCards[i] = -1;
+	            }
+	
+	            boolean isSet = env.util.testSet(playerCards);
+	
+	            if (isSet) {
+	                players[player].point();
+	                for (int slot : playerTokens)
+	                    table.removeCard(slot);
+	            }
+	            else {
+	                players[player].penalty();
+	            }
             }
-
-            boolean isSet = env.util.testSet(playerCards);
-
-            if (isSet) {
-                players[player].point();
-                for (int slot : playerTokens)
-                    table.removeCard(slot);
-            }
-            else {
-                players[player].penalty();
-            }}
         }
         // TODO implement
     }
@@ -156,11 +157,13 @@ public class Dealer implements Runnable {
      * Sleep for a fixed amount of time or until the thread is awakened for some purpose.
      */
     private void sleepUntilWokenOrTimeout() {
-        if (!setDeclared) {
-            try { // TODO: timer bonus.
-                Thread.sleep(reshuffleTime);
-            } catch (InterruptedException ignored) {
-            }
+    	if (setContenders.isEmpty()) {
+        	synchronized (declareSetLock) {
+	            try { // TODO: timer bonus.
+	                declareSetLock.wait(env.config.turnTimeoutWarningMillis);
+	            } catch (InterruptedException ignored) {
+	            }
+        	}
         }
     }
 

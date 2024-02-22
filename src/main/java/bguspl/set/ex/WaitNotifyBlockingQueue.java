@@ -43,7 +43,7 @@ public class WaitNotifyBlockingQueue<T> implements BlockingQueue<T> {
 	}
 
 	@Override
-	public void clear() {
+	public synchronized void clear() {
 		
 		while (itemvec.size() > 0) {
 			itemvec.clear();
