@@ -72,7 +72,7 @@ public class Player implements Runnable {
         this.id = id;
         this.human = human;
         this.dealer = dealer;
-        inputBuffer = new WaitNotifyBlockingQueue<Integer>(env.config.featureSize);
+        inputBuffer = new WaitNotifyBlockingQueue<>(env.config.featureSize);
 
         myLock = new Lock();
     }
@@ -152,7 +152,6 @@ public class Player implements Runnable {
      * Called when the game should be terminated.
      */
     public void terminate() {
-
         terminate = true;
         notifyAll();
         // TODO graceful exit challenge
