@@ -32,7 +32,7 @@ public class Dealer implements Runnable {
      */
     private volatile boolean terminate;
 
-    private final long TIMER_REFRESH_RATE = 33;
+    private final long RESHUFFLE_TIMER_REFRESH_RATE = 33;
 
     private final Lock declareSetLock;
 
@@ -42,7 +42,6 @@ public class Dealer implements Runnable {
      * The time when the dealer needs to reshuffle the deck due to turn timeout.
      */
     private long reshuffleTime;
-    private boolean setDeclared;
 
     public Dealer(Env env, Table table, Player[] players) {
         this.env = env;
@@ -52,7 +51,6 @@ public class Dealer implements Runnable {
         terminate = false;
 
         declareSetLock = new Lock();
-        setDeclared = false;
         setContenders = new PriorityQueue<>();
 
         // TODO: initialize some values according to env.config
@@ -106,7 +104,7 @@ public class Dealer implements Runnable {
      * @return true iff the game should be finished.
      */
     private boolean shouldFinish() {
-        return terminate || env.util.findSets(deck, 1).isEmpty();
+        return terminate || env.util.findSets(table.getDeck(), 1).isEmpty();
     }
 
     /**
@@ -121,24 +119,37 @@ public class Dealer implements Runnable {
                 int player = setContenders.remove();
                 Integer[] playerTokens = table.getPlayerTokens(player).toArray(new Integer[0]);
                 int[] playerCards = new int[playerTokens.length];
+
+                boolean isSet = true;
                 for (int i = 0; i < playerTokens.length; i++) {
                     if (table.slotToCard[playerTokens[i]] != null)
                         playerCards[i] = table.slotToCard[playerTokens[i]];
-                    else
+                    else {
                         playerCards[i] = -1;
+                        isSet=false;
+                    }
                 }
-
-                boolean isSet = env.util.testSet(playerCards);
+                if (playerCards.length != env.config.featureSize)
+                	isSet = false;
+                
+                if (isSet)
+                	isSet = env.util.testSet(playerCards);
 
                 if (isSet) {
                     players[player].point();
-                    for (int slot : playerTokens)
+                    for (int slot : playerTokens) {
                         table.removeCard(slot);
+                        deck.remove((Integer) slot); // updating dealer.deck in case testing is needed.
+                        updateTimerDisplay(true);
+                    }
+                    System.out.println("removed " + playerTokens.length + " tokens");
                 } else {
                     players[player].penalty();
                 }
             }
         }
+        
+        
         // TODO implement
     }
 
@@ -159,9 +170,9 @@ public class Dealer implements Runnable {
      * Sleep for a fixed amount of time or until the thread is awakened for some purpose.
      */
     private void sleepUntilWokenOrTimeout() {
-        if (!setDeclared) {
+        if (!setContenders.isEmpty()) {
             try { // TODO: timer bonus.
-                Thread.sleep(TIMER_REFRESH_RATE);
+                Thread.sleep(RESHUFFLE_TIMER_REFRESH_RATE);
             } catch (InterruptedException ignored) {
             }
         }
@@ -172,10 +183,10 @@ public class Dealer implements Runnable {
      */
     private void updateTimerDisplay(boolean reset) {
         if (reset)
-            reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis - 50000;
+            reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis - 30000; // TODO remove this before submitting
 
-        long deltaTime = reshuffleTime - System.currentTimeMillis();
-        env.ui.setCountdown(deltaTime, deltaTime <= env.config.turnTimeoutWarningMillis);
+        long timeLeft = reshuffleTime - System.currentTimeMillis();
+        env.ui.setCountdown(timeLeft, timeLeft <= env.config.turnTimeoutWarningMillis);
     }
 
     /**
@@ -212,7 +223,6 @@ public class Dealer implements Runnable {
 
     public void declareSet(int id) {
         synchronized (declareSetLock) {
-            setDeclared = true;
             setContenders.add(id);
             declareSetLock.notifyAll();
         }

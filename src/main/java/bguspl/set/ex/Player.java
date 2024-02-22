@@ -10,7 +10,10 @@ import bguspl.set.Env;
  */
 public class Player implements Runnable {
 
-    private static final long AIWAITTIME = 1000;
+    private static final long AI_DELAY_MILLIS = 1000;
+    
+    private final long PLAYER_TIMER_REFRESH_RATE = 500;
+    
     /**
      * The game environment object.
      */
@@ -62,7 +65,6 @@ public class Player implements Runnable {
     private volatile boolean declareResultIsPenalty = false;
 
     private volatile boolean declareResultIsPoint = false;
-
     /**
      * The class constructor.
      *
@@ -97,31 +99,31 @@ public class Player implements Runnable {
             // read action from queue * thread will wait here for input.
             int keyPress = inputBuffer.pop();
 
-            table.token(id, keyPress);
+            boolean tokensChanged = table.token(id, keyPress);
 
             // if 3 tokens, notify dealer, wait till dealer finishes.
-            if (table.tokenAmount(id) == env.config.featureSize) {
+            if (table.tokenAmount(id) == env.config.featureSize && tokensChanged) {
                 dealer.declareSet(id);
-                synchronized (myLock) {
-                    try {
-                        iAmWaitingForDeclareResult = true;
-                        myLock.notifyAll();
-                        myLock.wait();
+                synchronized (myLock){
+                	try {
+                		iAmWaitingForDeclareResult = true;
+                    	myLock.notifyAll();
+                    	myLock.wait();
 
-                        iAmWaitingForDeclareResult = false;
-                        if (declareResultIsPenalty) {
-                            // TODO: notify ui of freeze
-                            Thread.sleep(env.config.penaltyFreezeMillis);
-                        }
-                        if (declareResultIsPoint) {
-                            // TODO: notify ui of freeze
-                            Thread.sleep(env.config.pointFreezeMillis);
-                        }
-                        declareResultIsPenalty = false;
-                        declareResultIsPoint = false;
+                    	iAmWaitingForDeclareResult = false;
+                    	
+	                	if (declareResultIsPenalty) {
+	                		// TODO: notify ui of freeze
+	                		freeze(env.config.penaltyFreezeMillis);
+	                	}
+	                	if (declareResultIsPoint) {
+	                		// TODO: notify ui of freeze
+	                		freeze(env.config.pointFreezeMillis);
+	                	}
+	                	declareResultIsPenalty = false;
+	                	declareResultIsPoint = false;
 
-                    } catch (InterruptedException e) {
-                    }
+                	} catch (InterruptedException e) {}
                 }
                 inputBuffer.clear();
 
@@ -131,11 +133,18 @@ public class Player implements Runnable {
         }
         if (!human) try {
             aiThread.join();
-        } catch (InterruptedException ignored) {
-        }
+        } catch (InterruptedException ignored) {}
         env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
     }
 
+	private void freeze(long freezeTime) throws InterruptedException {
+		long currentTime = System.currentTimeMillis();
+		while (System.currentTimeMillis() < currentTime + freezeTime) {
+			env.ui.setFreeze(this.id, currentTime + freezeTime - System.currentTimeMillis());
+			Thread.sleep(PLAYER_TIMER_REFRESH_RATE);
+		}
+		env.ui.setFreeze(id, -1);
+	}
 
     /**
      * Creates an additional thread for an AI (computer) player. The main loop of this thread repeatedly generates
@@ -151,7 +160,7 @@ public class Player implements Runnable {
                 inputBuffer.add((int) (Math.random() * env.config.tableSize));
                 try {
                     synchronized (this) {
-                        wait(AIWAITTIME);
+                        wait(AI_DELAY_MILLIS);
                     }
                 } catch (InterruptedException ignored) {
                 }
@@ -173,6 +182,7 @@ public class Player implements Runnable {
         terminate = true;
         notifyAll();
         // TODO graceful exit challenge
+
     }
 
     /**
@@ -191,15 +201,14 @@ public class Player implements Runnable {
      * @post - the player's score is updated in the ui.
      */
     public void point() {
-        synchronized (myLock) {
-            while (!iAmWaitingForDeclareResult) {
-                try {
-                    myLock.wait();
-                } catch (InterruptedException ignored) {
-                }
-            }
-            declareResultIsPoint = true;
-            myLock.notifyAll();
+    	synchronized(myLock) {
+    		while (!iAmWaitingForDeclareResult) {
+	        	try {
+					myLock.wait();
+	        	} catch (InterruptedException ignored) {}
+    		}
+    		declareResultIsPoint = true;
+    		myLock.notifyAll();
         }
 
         int ignored = table.countCards(); // this part is just for demonstration in the unit tests
@@ -210,15 +219,14 @@ public class Player implements Runnable {
      * Penalize a player and perform other related actions.
      */
     public void penalty() {
-        synchronized (myLock) {
-            while (!iAmWaitingForDeclareResult) {
-                try {
-                    myLock.wait();
-                } catch (InterruptedException ignored) {
-                }
-            }
-            declareResultIsPenalty = true;
-            myLock.notifyAll();
+        synchronized(myLock) {
+    		while (!iAmWaitingForDeclareResult) {
+	        	try {
+					myLock.wait();
+	        	} catch (InterruptedException ignored) {}
+    		}
+    		declareResultIsPenalty = true;
+    		myLock.notifyAll();
         }
     }
 
