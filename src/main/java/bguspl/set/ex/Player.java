@@ -56,6 +56,7 @@ public class Player implements Runnable {
     private Dealer dealer;
 
     public final Lock myLock;
+
     /**
      * The class constructor.
      *
@@ -96,8 +97,9 @@ public class Player implements Runnable {
             if (table.tokenAmount(id) == env.config.featureSize) {
                 dealer.declareSet(id);
                 try {
-                    synchronized (myLock){
-                    myLock.wait();}
+                    synchronized (myLock) {
+                        myLock.wait();
+                    }
                 } catch (InterruptedException ignored) {
                 }
             }
