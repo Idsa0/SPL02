@@ -113,7 +113,7 @@ public class Dealer implements Runnable {
      * Checks cards should be removed from the table and removes them.
      */
     private void removeCardsFromTable() {
-        if (!setDeclared)
+        if (setContenders.isEmpty())
             return;
 
         synchronized (declareSetLock) {
