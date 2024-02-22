@@ -62,6 +62,7 @@ public class Player implements Runnable {
     private volatile boolean declareResultIsPenalty = false;
 
     private volatile boolean declareResultIsPoint = false;
+
     /**
      * The class constructor.
      *
@@ -101,25 +102,26 @@ public class Player implements Runnable {
             // if 3 tokens, notify dealer, wait till dealer finishes.
             if (table.tokenAmount(id) == env.config.featureSize) {
                 dealer.declareSet(id);
-                synchronized (myLock){
-                	try {
-                		iAmWaitingForDeclareResult = true;
-                    	myLock.notifyAll();
-                    	myLock.wait();
+                synchronized (myLock) {
+                    try {
+                        iAmWaitingForDeclareResult = true;
+                        myLock.notifyAll();
+                        myLock.wait();
 
-                    	iAmWaitingForDeclareResult = false;
-	                	if (declareResultIsPenalty) {
-	                		// TODO: notify ui of freeze
-	                		Thread.sleep(env.config.penaltyFreezeMillis);
-	                	}
-	                	if (declareResultIsPoint) {
-	                		// TODO: notify ui of freeze
-	                		Thread.sleep(env.config.pointFreezeMillis);
-	                	}
-	                	declareResultIsPenalty = false;
-	                	declareResultIsPoint = false;
+                        iAmWaitingForDeclareResult = false;
+                        if (declareResultIsPenalty) {
+                            // TODO: notify ui of freeze
+                            Thread.sleep(env.config.penaltyFreezeMillis);
+                        }
+                        if (declareResultIsPoint) {
+                            // TODO: notify ui of freeze
+                            Thread.sleep(env.config.pointFreezeMillis);
+                        }
+                        declareResultIsPenalty = false;
+                        declareResultIsPoint = false;
 
-                	} catch (InterruptedException e) {}
+                    } catch (InterruptedException e) {
+                    }
                 }
                 inputBuffer.clear();
 
@@ -129,7 +131,8 @@ public class Player implements Runnable {
         }
         if (!human) try {
             aiThread.join();
-        } catch (InterruptedException ignored) {}
+        } catch (InterruptedException ignored) {
+        }
         env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
     }
 
@@ -170,7 +173,6 @@ public class Player implements Runnable {
         terminate = true;
         notifyAll();
         // TODO graceful exit challenge
-
     }
 
     /**
@@ -189,14 +191,15 @@ public class Player implements Runnable {
      * @post - the player's score is updated in the ui.
      */
     public void point() {
-    	synchronized(myLock) {
-    		while (!iAmWaitingForDeclareResult) {
-	        	try {
-					myLock.wait();
-	        	} catch (InterruptedException ignored) {}
-    		}
-    		declareResultIsPoint = true;
-    		myLock.notifyAll();
+        synchronized (myLock) {
+            while (!iAmWaitingForDeclareResult) {
+                try {
+                    myLock.wait();
+                } catch (InterruptedException ignored) {
+                }
+            }
+            declareResultIsPoint = true;
+            myLock.notifyAll();
         }
 
         int ignored = table.countCards(); // this part is just for demonstration in the unit tests
@@ -207,14 +210,15 @@ public class Player implements Runnable {
      * Penalize a player and perform other related actions.
      */
     public void penalty() {
-        synchronized(myLock) {
-    		while (!iAmWaitingForDeclareResult) {
-	        	try {
-					myLock.wait();
-	        	} catch (InterruptedException ignored) {}
-    		}
-    		declareResultIsPenalty = true;
-    		myLock.notifyAll();
+        synchronized (myLock) {
+            while (!iAmWaitingForDeclareResult) {
+                try {
+                    myLock.wait();
+                } catch (InterruptedException ignored) {
+                }
+            }
+            declareResultIsPenalty = true;
+            myLock.notifyAll();
         }
     }
 
