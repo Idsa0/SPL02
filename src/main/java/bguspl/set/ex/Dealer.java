@@ -32,7 +32,9 @@ public class Dealer implements Runnable {
      */
     private volatile boolean terminate;
 
-    private final long RESHUFFLE_TIMER_REFRESH_RATE = 33;
+    private final long RESHUFFLE_TIMER_REFRESH_RATE_SHORT = 33;
+    private final long RESHUFFLE_TIMER_REFRESH_RATE_LONG = 1000;
+    private long RESHUFFLE_TIMER_REFRESH_RATE;
 
     private final Lock declareSetLock;
 
@@ -75,9 +77,15 @@ public class Dealer implements Runnable {
         }
         
         // TODO: initialize some values according to env.config
+        RESHUFFLE_TIMER_REFRESH_RATE = RESHUFFLE_TIMER_REFRESH_RATE_LONG;
+        
         reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis; // TODO: timer bonus.
         if (turnTimeoutMode == TurnTimeoutMode.NOCLOCK) {
         	reshuffleTime = Long.MAX_VALUE;
+        	
+        }
+        if (turnTimeoutMode == TurnTimeoutMode.LASTACTIONCLOCK) {
+        	reshuffleTime = System.currentTimeMillis();
         }
     }
 
@@ -112,9 +120,9 @@ public class Dealer implements Runnable {
      * The inner loop of the dealer thread that runs as long as the countdown did not time out.
      */
     private void timerLoop() {
-    	if (turnTimeoutMode == TurnTimeoutMode.NOCLOCK) {
+    	if (turnTimeoutMode == TurnTimeoutMode.NOCLOCK || turnTimeoutMode == TurnTimeoutMode.LASTACTIONCLOCK) {
     		while (!terminate && table.setOnTable()) {
-    			sleepUntilWokenOrTimeout();
+    			sleepUntilWokenOrTimeout(); // TODO: less wakeups in this mode?
                 removeCardsFromTable();
                 placeCardsOnTable();
                 updateTimerDisplay(false);	
@@ -211,11 +219,13 @@ public class Dealer implements Runnable {
      * Sleep for a fixed amount of time or until the thread is awakened for some purpose.
      */
     private void sleepUntilWokenOrTimeout() {
-        if (!setContenders.isEmpty()) {
-            try { // TODO: timer bonus.
-                Thread.sleep(RESHUFFLE_TIMER_REFRESH_RATE);
-            } catch (InterruptedException ignored) {
-            }
+        synchronized(declareSetLock) {
+			if (setContenders.isEmpty()) {
+		        try { // TODO: timer bonus.
+		            declareSetLock.wait(RESHUFFLE_TIMER_REFRESH_RATE);
+		        } catch (InterruptedException ignored) {
+		        }
+		    }
         }
     }
 
@@ -227,11 +237,29 @@ public class Dealer implements Runnable {
         	return;
         }
     	
-    	if (reset)
-            reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis; 
-
-        long timeLeft = reshuffleTime - System.currentTimeMillis();
-        env.ui.setCountdown(timeLeft, timeLeft <= env.config.turnTimeoutWarningMillis);
+        if (turnTimeoutMode == TurnTimeoutMode.LASTACTIONCLOCK) {
+        	if (reset) {
+        		reshuffleTime = System.currentTimeMillis();
+        		
+        	}
+        	
+        	env.ui.setElapsed(System.currentTimeMillis()-reshuffleTime);
+        	return;
+        }
+        
+        if (turnTimeoutMode == TurnTimeoutMode.NORMALCLOCK) {
+	    	if (reset)
+	            reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis; 
+	
+	        long timeLeft = reshuffleTime - System.currentTimeMillis();
+	        env.ui.setCountdown(timeLeft, timeLeft <= env.config.turnTimeoutWarningMillis);
+	        
+	        if (timeLeft <= env.config.turnTimeoutWarningMillis) {
+	        	RESHUFFLE_TIMER_REFRESH_RATE = RESHUFFLE_TIMER_REFRESH_RATE_SHORT;
+	        } else {
+	        	RESHUFFLE_TIMER_REFRESH_RATE = RESHUFFLE_TIMER_REFRESH_RATE_LONG;
+	        }
+        }
     }
 
     /**
@@ -243,6 +271,8 @@ public class Dealer implements Runnable {
 
         for (Integer i : list)
             table.removeCardAndReturnToDeck(i);
+        
+        table.shuffle();
     }
 
     /**

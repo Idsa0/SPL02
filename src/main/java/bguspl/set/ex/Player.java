@@ -10,7 +10,12 @@ import bguspl.set.Env;
  */
 public class Player implements Runnable {
 
-    private static final long AI_DELAY_MILLIS = 1;
+    private static final long AI_DELAY_MILLIS = 1; // TODO: remove
+
+    /*
+     * used to show correct time in the freeze timers
+     */
+	private static final long FREEZE_ADJUST = 999;
     
     private final long PLAYER_TIMER_REFRESH_RATE = 500;
     
@@ -58,12 +63,21 @@ public class Player implements Runnable {
 
     private Dealer dealer;
 
-    public final Lock myLock = new Lock();
+    
+    /*
+     * some lock logic to let Dealer wait till initialization is done
+     */
     
     private final Lock initalizationLock = new Lock();
     
     private volatile boolean initalizationDoneFlag = false;
-
+    
+    /*
+     * a lock and some flags to deal with the synchronization logic for declaring sets.
+     */
+    
+    public final Lock myLock = new Lock();
+    
     private volatile boolean iAmWaitingForDeclareResult = false;
 
     private volatile boolean declareResultIsPenalty = false;
@@ -164,10 +178,10 @@ public class Player implements Runnable {
 	private void freeze(long freezeTime) throws InterruptedException {
 		long currentTime = System.currentTimeMillis();
 		while (System.currentTimeMillis() < currentTime + freezeTime) {
-			env.ui.setFreeze(this.id, currentTime + freezeTime - System.currentTimeMillis());
+			env.ui.setFreeze(this.id, currentTime + freezeTime - System.currentTimeMillis() + FREEZE_ADJUST);
 			Thread.sleep(PLAYER_TIMER_REFRESH_RATE);
 		}
-		env.ui.setFreeze(id, -1);
+		env.ui.setFreeze(id, 0);
 	}
 
     /**

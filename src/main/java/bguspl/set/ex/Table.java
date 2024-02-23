@@ -288,4 +288,8 @@ public class Table {
 	public synchronized List<Integer> getDeck() {
 		return deck;
 	}
+	
+	public synchronized void shuffle() {
+		Collections.shuffle(deck);
+	}
 }
