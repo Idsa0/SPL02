@@ -30,11 +30,11 @@ public class WaitNotifyBlockingQueue<T> implements BlockingQueue<T> {
 	}
 
 	@Override
-	public synchronized T pop() {
+	public synchronized T pop() throws InterruptedException {
 		while (itemvec.size() <= 0) {
 			try {
 				this.wait();
-			} catch (InterruptedException ignored) {}
+			} catch (InterruptedException ignored) {throw new InterruptedException();}
 		}
 		
 		T t = itemvec.remove(0);

@@ -6,7 +6,7 @@ public interface BlockingQueue<T> {
 	
 	public boolean add(T item);
 	
-	public T pop();
+	public T pop() throws InterruptedException;
 
 	public void clear();
 }

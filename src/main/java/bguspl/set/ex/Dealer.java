@@ -64,8 +64,10 @@ public class Dealer implements Runnable {
     public void run() {
         env.logger.info("thread " + Thread.currentThread().getName() + " starting.");
 
-        for (Player player : players)
+        for (Player player : players) {
             new Thread(player, env.config.playerNames[player.id]).start();
+            player.waitForInitializationComplete();
+        }
 
         while (!shouldFinish()) {
             placeCardsOnTable();
@@ -75,6 +77,10 @@ public class Dealer implements Runnable {
             removeAllCardsFromTable();
         }
         announceWinners();
+        for (int i = players.length - 1 ; i >= 0; i--) {
+        	players[i].terminate();
+        	players[i].join();
+        }
         env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
     }
 
@@ -142,7 +148,6 @@ public class Dealer implements Runnable {
                         deck.remove((Integer) slot); // updating dealer.deck in case testing is needed.
                         updateTimerDisplay(true);
                     }
-                    System.out.println("removed " + playerTokens.length + " tokens");
                 } else {
                     players[player].penalty();
                 }

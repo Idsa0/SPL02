@@ -192,7 +192,6 @@ public class Table {
     public synchronized void removeCard(int slot) {
         // TODO should be locked
         removeCardWorker(slot);
-        System.out.println("removed slot " + slot);
     }
 
     public synchronized boolean token(int player, int slot) {

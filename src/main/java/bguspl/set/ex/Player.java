@@ -58,13 +58,20 @@ public class Player implements Runnable {
 
     private Dealer dealer;
 
-    public final Lock myLock;
+    public final Lock myLock = new Lock();
+    
+    private final Lock initalizationLock = new Lock();
+    
+    private volatile boolean initalizationDoneFlag = false;
 
     private volatile boolean iAmWaitingForDeclareResult = false;
 
     private volatile boolean declareResultIsPenalty = false;
 
     private volatile boolean declareResultIsPoint = false;
+    
+   
+    
     /**
      * The class constructor.
      *
@@ -82,7 +89,6 @@ public class Player implements Runnable {
         this.dealer = dealer;
         inputBuffer = new WaitNotifyBlockingQueue<>(env.config.featureSize);
 
-        myLock = new Lock();
     }
 
     /**
@@ -91,13 +97,22 @@ public class Player implements Runnable {
     @Override
     public void run() {
         playerThread = Thread.currentThread();
-        env.logger.info("thread " + Thread.currentThread().getName() + " starting.");
-        if (!human) createArtificialIntelligence();
+        env.logger.info("thread " + Thread.currentThread().getName() + " starting.");  
+        synchronized (initalizationLock) {
+	        if (!human) createArtificialIntelligence();
+	        initalizationDoneFlag = true;
+	        initalizationLock.notifyAll();
+        }
 
         while (!terminate) {
 
             // read action from queue * thread will wait here for input.
-            int keyPress = inputBuffer.pop();
+            int keyPress;
+        	try {
+            	keyPress = inputBuffer.pop();
+            } catch (InterruptedException e) {
+            	continue;
+            }
 
             boolean tokensChanged = table.token(id, keyPress);
 
@@ -113,11 +128,9 @@ public class Player implements Runnable {
                     	iAmWaitingForDeclareResult = false;
                     	
 	                	if (declareResultIsPenalty) {
-	                		// TODO: notify ui of freeze
 	                		freeze(env.config.penaltyFreezeMillis);
 	                	}
 	                	if (declareResultIsPoint) {
-	                		// TODO: notify ui of freeze
 	                		freeze(env.config.pointFreezeMillis);
 	                	}
 	                	declareResultIsPenalty = false;
@@ -137,6 +150,17 @@ public class Player implements Runnable {
         env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
     }
 
+    
+    public void waitForInitializationComplete() {
+    	synchronized(initalizationLock) {
+    		if (!initalizationDoneFlag) {
+    			try {
+    				initalizationLock.wait();
+    			} catch (InterruptedException ignored) {}
+    		}
+    	}
+    }
+    
 	private void freeze(long freezeTime) throws InterruptedException {
 		long currentTime = System.currentTimeMillis();
 		while (System.currentTimeMillis() < currentTime + freezeTime) {
@@ -180,8 +204,9 @@ public class Player implements Runnable {
      */
     public void terminate() {
         terminate = true;
-        notifyAll();
-        // TODO graceful exit challenge
+        playerThread.interrupt();
+        if (!human)
+        	aiThread.interrupt();
 
     }
 
@@ -191,7 +216,8 @@ public class Player implements Runnable {
      * @param slot - the slot corresponding to the key pressed.
      */
     public void keyPressed(int slot) {
-        inputBuffer.add(slot);
+    	if (human)
+    		inputBuffer.add(slot);
     }
 
     /**
@@ -232,5 +258,11 @@ public class Player implements Runnable {
 
     public int score() {
         return score;
+    }
+    
+    public void join() {
+    	try {
+    		playerThread.join();}
+    	catch (InterruptedException ignored) {}
     }
 }
