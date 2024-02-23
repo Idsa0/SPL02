@@ -18,7 +18,15 @@ We are not entitled to this bonus.
 
 2. Terminating all threads (that you created) gracefully and in reverse order to the order they were created in.
 
-We are not entitled to this bonus.
+1. the dealer threads creates the players threads and waits till they finish initailizations, so 
+we know that the computer threads were created in the expected order (before the next player thread)
+then at termination time the dealer thread calls in reverse order to the terminations and performs
+join() between each terminate.
+
+2. it was implemented mainly in the Dealer.run(), with some minor functions like player.join() created
+to expose functionality.
+
+3. by looking at the logs.
 
 --------------------
 
