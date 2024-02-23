@@ -42,6 +42,16 @@ public class Dealer implements Runnable {
      * The time when the dealer needs to reshuffle the deck due to turn timeout.
      */
     private long reshuffleTime;
+    
+    /**
+     * Used for handling the different game modes depending on turnTimeoutMillis
+     */
+    
+    private enum TurnTimeoutMode {
+    	NOCLOCK, LASTACTIONCLOCK, NORMALCLOCK
+    }
+    
+    private TurnTimeoutMode turnTimeoutMode; 
 
     public Dealer(Env env, Table table, Player[] players) {
         this.env = env;
@@ -53,8 +63,22 @@ public class Dealer implements Runnable {
         declareSetLock = new Lock();
         setContenders = new PriorityQueue<>();
 
+        
+        if (env.config.turnTimeoutMillis < 0) {
+        	turnTimeoutMode = TurnTimeoutMode.NOCLOCK;
+        }
+        else if (env.config.turnTimeoutMillis == 0) {
+        	turnTimeoutMode = TurnTimeoutMode.LASTACTIONCLOCK;
+        } 
+        else if (env.config.turnTimeoutMillis > 0) {
+        	turnTimeoutMode = TurnTimeoutMode.NORMALCLOCK;
+        }
+        
         // TODO: initialize some values according to env.config
         reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis; // TODO: timer bonus.
+        if (turnTimeoutMode == TurnTimeoutMode.NOCLOCK) {
+        	reshuffleTime = Long.MAX_VALUE;
+        }
     }
 
     /**
@@ -88,15 +112,27 @@ public class Dealer implements Runnable {
      * The inner loop of the dealer thread that runs as long as the countdown did not time out.
      */
     private void timerLoop() {
-        while (!terminate && System.currentTimeMillis() < reshuffleTime) {
-            sleepUntilWokenOrTimeout();
-            removeCardsFromTable();
-            placeCardsOnTable();
-            updateTimerDisplay(false);
-        }
+    	if (turnTimeoutMode == TurnTimeoutMode.NOCLOCK) {
+    		while (!terminate && table.setOnTable()) {
+    			sleepUntilWokenOrTimeout();
+                removeCardsFromTable();
+                placeCardsOnTable();
+                updateTimerDisplay(false);	
+    		}
+    	}
+    	else {
+	        while (!terminate && System.currentTimeMillis() < reshuffleTime) {
+	            sleepUntilWokenOrTimeout();
+	            removeCardsFromTable();
+	            placeCardsOnTable();
+	            updateTimerDisplay(false);
+	        }
+    	}
     }
 
-    /**
+    
+
+	/**
      * Called when the game should be terminated.
      */
     public void terminate() {
@@ -187,8 +223,12 @@ public class Dealer implements Runnable {
      * Reset and/or update the countdown and the countdown display.
      */
     private void updateTimerDisplay(boolean reset) {
-        if (reset)
-            reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis - 30000; // TODO remove this before submitting
+        if (turnTimeoutMode == TurnTimeoutMode.NOCLOCK){
+        	return;
+        }
+    	
+    	if (reset)
+            reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis; 
 
         long timeLeft = reshuffleTime - System.currentTimeMillis();
         env.ui.setCountdown(timeLeft, timeLeft <= env.config.turnTimeoutWarningMillis);

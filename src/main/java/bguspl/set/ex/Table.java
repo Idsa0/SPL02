@@ -103,6 +103,11 @@ public class Table {
             System.out.println(sb.append("slots: ").append(slots).append(" features: ").append(Arrays.deepToString(features)));
         });
     }
+    
+    public synchronized boolean setOnTable() {
+    	List<Integer> deck0 = Arrays.stream(slotToCard).filter(Objects::nonNull).collect(Collectors.toList());
+        return !env.util.findSets(deck0, Integer.MAX_VALUE).isEmpty();
+    }
 
     /**
      * Count the number of cards currently on the table.

@@ -10,7 +10,7 @@ import bguspl.set.Env;
  */
 public class Player implements Runnable {
 
-    private static final long AI_DELAY_MILLIS = 1000;
+    private static final long AI_DELAY_MILLIS = 1;
     
     private final long PLAYER_TIMER_REFRESH_RATE = 500;
     
