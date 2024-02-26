@@ -204,10 +204,11 @@ public class Dealer implements Runnable {
         int startingCards = table.countCards();
         for (Integer i : cardsToPlace)
             if (!table.deckEmpty())
-                table.placeCardFromDeck(i);
+                synchronized (table) {
+                    table.placeCardFromDeck(i);
+                }
 
-        boolean cardsPlaced = table.countCards() - startingCards > 0;
-        if (cardsPlaced && env.config.hints)
+        if (table.countCards() > startingCards && env.config.hints)
             table.hints();
     }
 

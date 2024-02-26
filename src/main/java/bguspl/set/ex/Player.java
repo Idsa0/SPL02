@@ -2,6 +2,11 @@ package bguspl.set.ex;
 
 import bguspl.set.Env;
 
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.LinkedBlockingQueue;
+
 /**
  * This class manages the players' threads and data
  *
@@ -95,7 +100,7 @@ public class Player implements Runnable {
         this.id = id;
         this.human = human;
         this.dealer = dealer;
-        inputBuffer = new WaitNotifyBlockingQueue<>(env.config.featureSize);
+        inputBuffer = new LinkedBlockingQueue<>(env.config.featureSize);
     }
 
     /**
@@ -116,7 +121,7 @@ public class Player implements Runnable {
             // read action from queue * thread will wait here for input.
             int keyPress;
             try {
-                keyPress = inputBuffer.pop();
+                keyPress = inputBuffer.take();
             } catch (InterruptedException e) {
                 continue;
             }
@@ -190,7 +195,10 @@ public class Player implements Runnable {
                 initalizationLock.notifyAll();
             }
             while (!terminate) {
-                inputBuffer.add((int) (Math.random() * env.config.tableSize));
+                try {
+                    inputBuffer.add((int) (Math.random() * env.config.tableSize));
+                } catch (Exception ignored) {
+                }
             }
             env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
         }, "computer-" + id);
@@ -214,7 +222,10 @@ public class Player implements Runnable {
      */
     public void keyPressed(int slot) {
         if (human)
-            inputBuffer.add(slot);
+            try {
+                inputBuffer.add(slot);
+            } catch (Exception ignored) {
+            }
     }
 
     /**
