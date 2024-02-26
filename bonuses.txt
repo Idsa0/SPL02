@@ -12,8 +12,13 @@ with a short description of:
 
 1. Fully supporting all configuration fields and avoiding the use of magic numbers
 
-We are not entitled to this bonus.
+1. Whenever the dealer places new cards on the table if hints are enabled we print them.
+Beyond that, every time a number is used, we instead use the correct field from env.config.
 
+2. in most class methods
+
+3. we used the configuration options which are relevant and manually tested them to be working with the logs,
+and there are no magic numbers in the code.
 --------------------
 
 2. Terminating all threads (that you created) gracefully and in reverse order to the order they were created in.
@@ -35,7 +40,12 @@ config.turnTimeoutMillis < 0: display nothing.
 config.turnTimeoutMillis = 0: display a timer since the last action (reshuffle or set collected).
 Note: in modes without a countdown timer the dealer must ensure there is always at least one legal set on the table.
 
-We are not entitled to this bonus.
+1. there is an ENUM recording in which mode the system is, and logic is changed based on said ENUM, particularly
+in the updateTimerDisplay where each ENUM option has relevant code
+
+2. mainly in updateTimerDisplay but also in the constructor
+
+3. We manually ran all options and tested it worked correctly.
 
 --------------------
 
@@ -43,4 +53,12 @@ We are not entitled to this bonus.
 changed on the display, key input needs to be handled, etc.) and the only threads created by you are:
 1 thread per player + 1 additional thread for non-human players.
 
-We are not entitled to this bonus.
+1. all threads are woken up only when needed. Player threads wait if there is no input, and the player/dealer waits until
+the time has come to update the timer display (player updates their freeze timer), or a player has asked for a set to be
+checked. There are no other notifies or interrupts in the code except for the .terminate() ones and the initialization ones.
+As for the threads, no extra threads are created.
+
+2. This mainly concerns the .run() of the threads, and in not creating additional threads.
+
+3. we manually checked no additional threads are created in the debugger, and by the way the code is written threads
+can not be woken up without reason.

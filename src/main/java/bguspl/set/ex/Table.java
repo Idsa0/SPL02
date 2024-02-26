@@ -32,15 +32,7 @@ public class Table {
      */
     protected final Vector<Integer>[] playerTokens;
 
-    protected final Lock[] playerLocks;
-
-    protected final Lock cardLock;
-
-	/*private final Lock declareSetLock;
-
-	private boolean checkSet;*/
-
-    private List<Integer> deck;
+    private final List<Integer> deck;
 
     /**
      * Constructor for testing.
@@ -50,35 +42,26 @@ public class Table {
      * @param cardToSlot - mapping between a card and the slot it is in (null if none).
      */
     public Table(Env env, Integer[] slotToCard, Integer[] cardToSlot) {
-
         this.env = env;
         this.slotToCard = slotToCard;
         this.cardToSlot = cardToSlot;
 
-        // TODO: check slotToCard, cardToSlot are legal
-
         // Java does not allow an array of vectors to be created. Must be cast.
-        this.playerTokens = (Vector<Integer>[]) new Vector[env.config.players]; // TODO make sure this actually works
-        this.playerLocks = new Lock[env.config.players];
+        //noinspection unchecked
+        this.playerTokens = (Vector<Integer>[]) new Vector[env.config.players];
 
-        for (int i = 0; i < env.config.players; i++) {
+        for (int i = 0; i < env.config.players; i++)
             playerTokens[i] = new Vector<>();
-            playerLocks[i] = new Lock();
-        }
-        cardLock = new Lock();
 
         deck = new ArrayList<>(env.config.deckSize);
         for (int i = 0; i < env.config.deckSize; i++)
             deck.add(i);
 
         // in case slotToCard is not empty:
-        for (Integer i : slotToCard) {
-            deck.remove(i); // TODO: does this remove the object? or the index?
-        }
+        for (Integer i : slotToCard)
+            deck.remove(i);
 
         Collections.shuffle(deck);
-
-        //declareSetLock = new Lock();
     }
 
     /**
@@ -87,7 +70,6 @@ public class Table {
      * @param env - the game environment objects.
      */
     public Table(Env env) {
-
         this(env, new Integer[env.config.tableSize], new Integer[env.config.deckSize]);
     }
 
@@ -104,6 +86,11 @@ public class Table {
         });
     }
 
+    public synchronized boolean setOnTable() {
+        List<Integer> deck0 = Arrays.stream(slotToCard).filter(Objects::nonNull).collect(Collectors.toList());
+        return !env.util.findSets(deck0, Integer.MAX_VALUE).isEmpty();
+    }
+
     /**
      * Count the number of cards currently on the table.
      *
@@ -118,7 +105,6 @@ public class Table {
     }
 
     public synchronized boolean hasCard(int slot) {
-        // TODO sync?
         return slotToCard[slot] != null;
     }
 
@@ -142,21 +128,18 @@ public class Table {
         } catch (InterruptedException ignored) {
         }
 
-        deck.remove((Integer) card); // TODO suspicious no way this works, right? right???
+        deck.remove((Integer) card);
         cardToSlot[card] = slot;
         slotToCard[slot] = card;
 
         env.ui.placeCard(card, slot);
     }
 
-
     public synchronized void placeCardFromDeck(int slot) {
         placeCard(deck.get(0), slot);
     }
 
     public synchronized void removeCardAndReturnToDeck(int slot) {
-        // TODO should be locked
-
         Integer card = removeCardWorker(slot);
         if (card != null)
             deck.add(card);
@@ -169,19 +152,17 @@ public class Table {
             Thread.sleep(env.config.tableDelayMillis);
         } catch (InterruptedException ignored) {
         }
-        
+
         for (int i = 0; i < env.config.players; i++)
             removeToken(i, slot);
-        
+
         Integer card = slotToCard[slot];
         if (card != null)
             cardToSlot[card] = null;
         slotToCard[slot] = null;
 
-        
-
         env.ui.removeCard(slot);
-            return card;
+        return card;
     }
 
     /**
@@ -190,22 +171,19 @@ public class Table {
      * @param slot - the slot from which to remove the card.
      */
     public synchronized void removeCard(int slot) {
-        // TODO should be locked
         removeCardWorker(slot);
     }
 
     public synchronized boolean token(int player, int slot) {
-        synchronized (this) {
-            if (!tokenLegalSlot(slot))
-                return false;
+        if (!tokenLegalSlot(slot))
+            return false;
 
-            if (playerTokens[player].contains(slot))
-                return removeToken(player, slot);
-            else {
-            	int tokens = tokenAmount(player);
-                placeToken(player, slot);
-                return tokenAmount(player) > tokens;
-            }
+        if (playerTokens[player].contains(slot))
+            return removeToken(player, slot);
+        else {
+            int tokens = tokenAmount(player);
+            placeToken(player, slot);
+            return tokenAmount(player) > tokens;
         }
     }
 
@@ -216,19 +194,17 @@ public class Table {
      * @param slot   - the slot on which to place the token.
      */
     public synchronized void placeToken(int player, int slot) {
-        synchronized (playerLocks[player]) {
-            if (!tokenLegalSlot(slot)) // TODO card locking
-                return;
+        if (!tokenLegalSlot(slot))
+            return;
 
-            if (tokenAmount(player) >= env.config.featureSize)
-                return;
+        if (tokenAmount(player) >= env.config.featureSize)
+            return;
 
-            if (playerTokens[player].contains(slot))
-                return;
+        if (playerTokens[player].contains(slot))
+            return;
 
-            playerTokens[player].add(slot);
-            env.ui.placeToken(player, slot);
-        }
+        playerTokens[player].add(slot);
+        env.ui.placeToken(player, slot);
     }
 
     // a tokenLegalSlot is a legalSlot that has a card.
@@ -240,7 +216,6 @@ public class Table {
         return slot < slotToCard.length;
     }
 
-
     /**
      * Removes a token of a player from a grid slot.
      *
@@ -249,7 +224,6 @@ public class Table {
      * @return - true iff a token was successfully removed.
      */
     public synchronized boolean removeToken(int player, int slot) {
-        
         if (!tokenLegalSlot(slot))
             return false;
 
@@ -263,13 +237,11 @@ public class Table {
         }
 
         return false;
-    
     }
 
     public synchronized int tokenAmount(int player) {
-        synchronized (playerLocks[player]) {
-            return playerTokens[player].size();
-        }
+        return playerTokens[player].size();
+
     }
 
     public synchronized boolean deckEmpty() {
@@ -280,7 +252,11 @@ public class Table {
         return playerTokens[player];
     }
 
-	public synchronized List<Integer> getDeck() {
-		return deck;
-	}
+    public synchronized List<Integer> getDeck() {
+        return deck;
+    }
+
+    public synchronized void shuffle() {
+        Collections.shuffle(deck);
+    }
 }
