@@ -6,52 +6,49 @@ import java.util.Vector;
 // an object is available.
 public class WaitNotifyBlockingQueue<T> implements BlockingQueue<T> {
 
-	private Vector<T> itemvec;
-	private int maxSize;
-	
-	public WaitNotifyBlockingQueue(int maxSize)
-	{
-		this.maxSize = maxSize;
-		itemvec = new Vector<T>();
-	}
-	
-	@Override
-	public synchronized boolean add(T item) {
-		while (itemvec.size() >= maxSize) {
-			try {
-				this.wait();
-			} catch (InterruptedException ignored) {}
-		}
-		
-		itemvec.add(item);
-		this.notifyAll();
-		
-		return true;
-	}
+    private final Vector<T> vec;
+    private final int maxSize;
 
-	@Override
-	public synchronized T pop() throws InterruptedException {
-		while (itemvec.size() <= 0) {
-			try {
-				this.wait();
-			} catch (InterruptedException ignored) {throw new InterruptedException();}
-		}
-		
-		T t = itemvec.remove(0);
-		this.notifyAll();
-		return t;
-	}
+    public WaitNotifyBlockingQueue(int maxSize) {
+        this.maxSize = maxSize;
+        vec = new Vector<>();
+    }
 
-	@Override
-	public synchronized void clear() {
-		
-		while (itemvec.size() > 0) {
-			itemvec.clear();
-			this.notifyAll();
-		}
-		
-		
-	}
+    @Override
+    public synchronized boolean add(T item) {
+        while (vec.size() >= maxSize) {
+            try {
+                this.wait();
+            } catch (InterruptedException ignored) {
+            }
+        }
 
-	
+        vec.add(item);
+        this.notifyAll();
+
+        return true;
+    }
+
+    @Override
+    public synchronized T pop() throws InterruptedException {
+        while (vec.isEmpty()) {
+            try {
+                this.wait();
+            } catch (InterruptedException ignored) {
+                throw new InterruptedException();
+            }
+        }
+
+        T t = vec.remove(0);
+        this.notifyAll();
+        return t;
+    }
+
+    @Override
+    public synchronized void clear() {
+        while (!vec.isEmpty()) {
+            vec.clear();
+            this.notifyAll();
+        }
+    }
 }
