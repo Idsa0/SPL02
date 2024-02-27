@@ -194,7 +194,7 @@ public class Player implements Runnable {
             }
             while (!terminate) {
                 try {
-                    inputBuffer.add((int) (Math.random() * env.config.tableSize));
+                    inputBuffer.put((int) (Math.random() * env.config.tableSize));
                 } catch (Exception ignored) {
                 }
             }
@@ -221,7 +221,7 @@ public class Player implements Runnable {
     public void keyPressed(int slot) {
         if (human)
             try {
-                inputBuffer.add(slot);
+                inputBuffer.offer(slot);
             } catch (Exception ignored) {
             }
     }
